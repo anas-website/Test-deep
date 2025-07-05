@@ -5,43 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Table Designer with AR</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/exporters/GLTFExporter.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
     <style>
-        body { 
-            margin: 0; 
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-        }
-        #container { 
-            display: flex;
-            height: 100vh;
-        }
-        #design-panel {
-            width: 300px;
-            padding: 20px;
-            background: #f5f5f5;
-            overflow-y: auto;
-        }
-        #viewer-container {
-            flex-grow: 1;
-            position: relative;
-        }
-        .control-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-        input[type="range"] {
-            width: 100%;
-        }
-        .value-display {
-            text-align: right;
-            color: #666;
-        }
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #container { display: flex; height: 100vh; }
+        #controls { width: 300px; padding: 20px; background: #f0f0f0; overflow-y: auto; }
+        #viewer { flex-grow: 1; position: relative; }
+        #ar-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; }
+        .value-display { text-align: center; margin-top: 5px; }
         button {
             background: #4CAF50;
             color: white;
@@ -50,104 +25,86 @@
             margin-top: 10px;
             cursor: pointer;
             width: 100%;
-            font-size: 16px;
         }
-        button:hover {
-            background: #45a049;
+        button:hover { background: #45a049; }
+        #ar-button { background: #2196F3; }
+        #ar-button:hover { background: #0b7dda; }
+        #exit-ar { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            z-index: 1000;
+            background: #f44336;
         }
-        #ar-button {
-            background: #2196F3;
-        }
-        #ar-button:hover {
-            background: #0b7dda;
-        }
+        #exit-ar:hover { background: #d32f2f; }
     </style>
 </head>
 <body>
     <div id="container">
-        <div id="design-panel">
+        <div id="controls">
             <h2>Table Designer</h2>
             
             <div class="control-group">
-                <label for="width">Width (meters)</label>
+                <label for="width">Width (meters): <span id="width-value">1.2</span></label>
                 <input type="range" id="width" min="0.5" max="3" step="0.1" value="1.2">
-                <div class="value-display" id="width-value">1.2m</div>
             </div>
             
             <div class="control-group">
-                <label for="depth">Depth (meters)</label>
+                <label for="depth">Depth (meters): <span id="depth-value">0.8</span></label>
                 <input type="range" id="depth" min="0.5" max="2" step="0.1" value="0.8">
-                <div class="value-display" id="depth-value">0.8m</div>
             </div>
             
             <div class="control-group">
-                <label for="height">Height (meters)</label>
-                <input type="range" id="height" min="0.5" max="1.2" step="0.05" value="0.75">
-                <div class="value-display" id="height-value">0.75m</div>
+                <label for="height">Height (meters): <span id="height-value">0.75</span></label>
+                <input type="range" id="height" min="0.4" max="1.2" step="0.05" value="0.75">
             </div>
             
             <div class="control-group">
-                <label for="leg-thickness">Leg Thickness (meters)</label>
-                <input type="range" id="leg-thickness" min="0.02" max="0.15" step="0.01" value="0.05">
-                <div class="value-display" id="leg-thickness-value">0.05m</div>
+                <label for="thickness">Tabletop Thickness (cm): <span id="thickness-value">5</span></label>
+                <input type="range" id="thickness" min="1" max="10" step="0.5" value="5">
             </div>
             
             <div class="control-group">
-                <label for="tabletop-thickness">Tabletop Thickness (meters)</label>
-                <input type="range" id="tabletop-thickness" min="0.01" max="0.1" step="0.01" value="0.05">
-                <div class="value-display" id="tabletop-thickness-value">0.05m</div>
+                <label for="leg-size">Leg Thickness (cm): <span id="leg-size-value">5</span></label>
+                <input type="range" id="leg-size" min="2" max="15" step="0.5" value="5">
             </div>
             
             <div class="control-group">
-                <label for="tabletop-color">Tabletop Color</label>
-                <input type="color" id="tabletop-color" value="#8B4513">
+                <label for="color">Table Color:</label>
+                <input type="color" id="color" value="#8B4513">
             </div>
             
-            <div class="control-group">
-                <label for="leg-color">Leg Color</label>
-                <input type="color" id="leg-color" value="#654321">
-            </div>
-            
-            <button id="export-button">Export 3D Model</button>
             <button id="ar-button">View in AR</button>
         </div>
         
-        <div id="viewer-container"></div>
+        <div id="viewer">
+            <div id="ar-container"></div>
+        </div>
     </div>
 
     <script>
-        // Initialize Three.js scene
-        const container = document.getElementById('viewer-container');
+        // Main Three.js scene
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf0f0f0);
         
         const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 300) / window.innerHeight, 0.1, 1000);
-        camera.position.set(1, 1, 2);
+        camera.position.set(2, 2, 2);
         
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth - 300, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        container.appendChild(renderer.domElement);
+        renderer.xr.enabled = true;
+        document.getElementById('viewer').appendChild(renderer.domElement);
         
-        // Add orbit controls
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
         
-        // Add lights
+        // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
         
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 1024;
-        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.position.set(1, 1, 1);
         scene.add(directionalLight);
-        
-        // Add grid helper
-        const gridHelper = new THREE.GridHelper(10, 10);
-        scene.add(gridHelper);
         
         // Table parameters
         const tableParams = {
@@ -156,15 +113,21 @@
             height: 0.75,
             legThickness: 0.05,
             tabletopThickness: 0.05,
-            tabletopColor: 0x8B4513,
-            legColor: 0x654321
+            color: 0x8B4513
         };
         
         let tableGroup = new THREE.Group();
         scene.add(tableGroup);
         
+        // AR scene
+        const arScene = new THREE.Scene();
+        let arTable = null;
+        let arCamera = null;
+        let arSession = false;
+        
+        // Create table function
         function createTable() {
-            // Remove previous table
+            // Clear previous table
             while(tableGroup.children.length > 0) {
                 tableGroup.remove(tableGroup.children[0]);
             }
@@ -176,41 +139,41 @@
                 tableParams.depth
             );
             const tabletopMaterial = new THREE.MeshStandardMaterial({ 
-                color: tableParams.tabletopColor,
+                color: tableParams.color,
                 roughness: 0.7,
                 metalness: 0.2
             });
             const tabletop = new THREE.Mesh(tabletopGeometry, tabletopMaterial);
             tabletop.position.y = tableParams.height;
-            tabletop.castShadow = true;
-            tabletop.receiveShadow = true;
             tableGroup.add(tabletop);
             
             // Create legs
             const legGeometry = new THREE.BoxGeometry(
                 tableParams.legThickness,
-                tableParams.height - tableParams.tabletopThickness/2,
+                tableParams.height - tableParams.tabletopThickness,
                 tableParams.legThickness
             );
             const legMaterial = new THREE.MeshStandardMaterial({ 
-                color: tableParams.legColor,
-                roughness: 0.5,
-                metalness: 0.1
+                color: tableParams.color,
+                roughness: 0.7,
+                metalness: 0.2
             });
             
             // Position legs at each corner
+            const halfWidth = tableParams.width/2 - tableParams.legThickness/2;
+            const halfDepth = tableParams.depth/2 - tableParams.legThickness/2;
+            const legHeight = (tableParams.height - tableParams.tabletopThickness)/2;
+            
             const positions = [
-                { x: (tableParams.width/2 - tableParams.legThickness/2), z: (tableParams.depth/2 - tableParams.legThickness/2) },
-                { x: -(tableParams.width/2 - tableParams.legThickness/2), z: (tableParams.depth/2 - tableParams.legThickness/2) },
-                { x: (tableParams.width/2 - tableParams.legThickness/2), z: -(tableParams.depth/2 - tableParams.legThickness/2) },
-                { x: -(tableParams.width/2 - tableParams.legThickness/2), z: -(tableParams.depth/2 - tableParams.legThickness/2) }
+                { x: halfWidth, z: halfDepth },
+                { x: -halfWidth, z: halfDepth },
+                { x: halfWidth, z: -halfDepth },
+                { x: -halfWidth, z: -halfDepth }
             ];
             
             positions.forEach(pos => {
                 const leg = new THREE.Mesh(legGeometry, legMaterial);
-                leg.position.set(pos.x, (tableParams.height - tableParams.tabletopThickness/2)/2, pos.z);
-                leg.castShadow = true;
-                leg.receiveShadow = true;
+                leg.position.set(pos.x, legHeight, pos.z);
                 tableGroup.add(leg);
             });
         }
@@ -219,64 +182,114 @@
         createTable();
         
         // Event listeners for controls
-        document.getElementById('width').addEventListener('input', function(e) {
-            tableParams.width = parseFloat(e.target.value);
-            document.getElementById('width-value').textContent = tableParams.width.toFixed(1) + 'm';
+        document.getElementById('width').addEventListener('input', function() {
+            tableParams.width = parseFloat(this.value);
+            document.getElementById('width-value').textContent = this.value;
             createTable();
         });
         
-        document.getElementById('depth').addEventListener('input', function(e) {
-            tableParams.depth = parseFloat(e.target.value);
-            document.getElementById('depth-value').textContent = tableParams.depth.toFixed(1) + 'm';
+        document.getElementById('depth').addEventListener('input', function() {
+            tableParams.depth = parseFloat(this.value);
+            document.getElementById('depth-value').textContent = this.value;
             createTable();
         });
         
-        document.getElementById('height').addEventListener('input', function(e) {
-            tableParams.height = parseFloat(e.target.value);
-            document.getElementById('height-value').textContent = tableParams.height.toFixed(2) + 'm';
+        document.getElementById('height').addEventListener('input', function() {
+            tableParams.height = parseFloat(this.value);
+            document.getElementById('height-value').textContent = this.value;
             createTable();
         });
         
-        document.getElementById('leg-thickness').addEventListener('input', function(e) {
-            tableParams.legThickness = parseFloat(e.target.value);
-            document.getElementById('leg-thickness-value').textContent = tableParams.legThickness.toFixed(2) + 'm';
+        document.getElementById('thickness').addEventListener('input', function() {
+            tableParams.tabletopThickness = parseFloat(this.value)/100;
+            document.getElementById('thickness-value').textContent = this.value;
             createTable();
         });
         
-        document.getElementById('tabletop-thickness').addEventListener('input', function(e) {
-            tableParams.tabletopThickness = parseFloat(e.target.value);
-            document.getElementById('tabletop-thickness-value').textContent = tableParams.tabletopThickness.toFixed(2) + 'm';
+        document.getElementById('leg-size').addEventListener('input', function() {
+            tableParams.legThickness = parseFloat(this.value)/100;
+            document.getElementById('leg-size-value').textContent = this.value;
             createTable();
         });
         
-        document.getElementById('tabletop-color').addEventListener('input', function(e) {
-            tableParams.tabletopColor = parseInt(e.target.value.substring(1), 16);
+        document.getElementById('color').addEventListener('input', function() {
+            tableParams.color = new THREE.Color(this.value).getHex();
             createTable();
-        });
-        
-        document.getElementById('leg-color').addEventListener('input', function(e) {
-            tableParams.legColor = parseInt(e.target.value.substring(1), 16);
-            createTable();
-        });
-        
-        // Export functionality
-        document.getElementById('export-button').addEventListener('click', function() {
-            const exporter = new THREE.GLTFExporter();
-            exporter.parse(tableGroup, function(gltf) {
-                const blob = new Blob([JSON.stringify(gltf)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'custom-table.gltf';
-                a.click();
-                URL.revokeObjectURL(url);
-            });
         });
         
         // AR functionality
         document.getElementById('ar-button').addEventListener('click', function() {
-            alert('AR viewing would be implemented here. In a real app, this would:\n\n1. Export the model to USDZ or GLTF format\n2. Launch the AR viewer on iOS/Android\n3. Allow placement in the real world');
+            if (!navigator.xr) {
+                alert('WebXR not supported in your browser. Try Chrome on Android or AR Quick Look on iOS.');
+                return;
+            }
+            
+            startAR();
         });
+        
+        function startAR() {
+            // Clone the table for AR
+            arTable = tableGroup.clone();
+            arScene.add(arTable);
+            
+            // Set up AR renderer
+            const arRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            arRenderer.setSize(window.innerWidth, window.innerHeight);
+            arRenderer.xr.enabled = true;
+            
+            document.getElementById('ar-container').innerHTML = '';
+            document.getElementById('ar-container').appendChild(arRenderer.domElement);
+            document.getElementById('ar-container').style.display = 'block';
+            
+            // Add exit button
+            const exitButton = document.createElement('button');
+            exitButton.id = 'exit-ar';
+            exitButton.textContent = 'Exit AR';
+            exitButton.addEventListener('click', exitAR);
+            document.getElementById('ar-container').appendChild(exitButton);
+            
+            // Set up AR session
+            navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['hit-test'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.body }
+            }).then(session => {
+                arSession = true;
+                
+                session.addEventListener('end', exitAR);
+                
+                arRenderer.xr.setSession(session);
+                
+                // Create AR camera
+                arCamera = new THREE.PerspectiveCamera();
+                arCamera.matrixAutoUpdate = true;
+                
+                // Animation loop
+                arRenderer.setAnimationLoop(function() {
+                    if (arTable) {
+                        // Make table face the camera
+                        arTable.lookAt(arCamera.position);
+                        arTable.rotation.x = 0;
+                        arTable.rotation.z = 0;
+                    }
+                    arRenderer.render(arScene, arCamera);
+                });
+            }).catch(err => {
+                console.error('AR session failed:', err);
+                alert('Failed to start AR session: ' + err.message);
+            });
+        }
+        
+        function exitAR() {
+            if (arSession) {
+                arSession.end().then(() => {
+                    arSession = false;
+                    document.getElementById('ar-container').style.display = 'none';
+                });
+            } else {
+                document.getElementById('ar-container').style.display = 'none';
+            }
+        }
         
         // Handle window resize
         window.addEventListener('resize', function() {
@@ -291,6 +304,7 @@
             controls.update();
             renderer.render(scene, camera);
         }
+        
         animate();
     </script>
 </body>
