@@ -2,109 +2,248 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>3D Table Designer with AR</title>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; }
-        #container { display: flex; height: 100vh; }
-        #controls { width: 300px; padding: 20px; background: #f0f0f0; overflow-y: auto; }
-        #viewer { flex-grow: 1; position: relative; }
-        #ar-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-        .control-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 5px; }
-        input[type="range"] { width: 100%; }
-        .value-display { text-align: center; margin-top: 5px; }
+        * { touch-action: none; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #controls {
+            background: rgba(240, 240, 240, 0.9);
+            padding: 15px;
+            border-radius: 0 0 15px 15px;
+            margin: 0 10px;
+            pointer-events: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        
+        #viewer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 8px;
+            background: #ddd;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2196F3;
+            border-radius: 50%;
+        }
+        
+        .value-display {
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
         button {
-            background: #4CAF50;
+            background: #2196F3;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 12px 15px;
             margin-top: 10px;
             cursor: pointer;
             width: 100%;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
-        button:hover { background: #45a049; }
-        #ar-button { background: #2196F3; }
-        #ar-button:hover { background: #0b7dda; }
-        #exit-ar { 
-            position: absolute; 
-            top: 20px; 
-            right: 20px; 
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        #exit-ar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 1000;
             background: #f44336;
+            width: 80%;
+            max-width: 300px;
         }
-        #exit-ar:hover { background: #d32f2f; }
+        
+        #ar-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            width: 80%;
+            max-width: 300px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .toggle-controls {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: rgba(255,255,255,0.9);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            z-index: 101;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        @media (min-width: 768px) {
+            #controls {
+                width: 300px;
+                max-height: 100vh;
+                border-radius: 0;
+                margin: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="container">
+    <div id="viewer"></div>
+    
+    <div id="ui-container">
+        <button class="toggle-controls" id="toggle-controls">☰</button>
         <div id="controls">
-            <h2>Table Designer</h2>
+            <h2 style="margin-top: 0;">Table Designer</h2>
             
             <div class="control-group">
-                <label for="width">Width (meters): <span id="width-value">1.2</span></label>
+                <label for="width">Width: <span id="width-value">1.2m</span></label>
                 <input type="range" id="width" min="0.5" max="3" step="0.1" value="1.2">
             </div>
             
             <div class="control-group">
-                <label for="depth">Depth (meters): <span id="depth-value">0.8</span></label>
+                <label for="depth">Depth: <span id="depth-value">0.8m</span></label>
                 <input type="range" id="depth" min="0.5" max="2" step="0.1" value="0.8">
             </div>
             
             <div class="control-group">
-                <label for="height">Height (meters): <span id="height-value">0.75</span></label>
+                <label for="height">Height: <span id="height-value">0.75m</span></label>
                 <input type="range" id="height" min="0.4" max="1.2" step="0.05" value="0.75">
             </div>
             
             <div class="control-group">
-                <label for="thickness">Tabletop Thickness (cm): <span id="thickness-value">5</span></label>
+                <label for="thickness">Tabletop: <span id="thickness-value">5cm</span></label>
                 <input type="range" id="thickness" min="1" max="10" step="0.5" value="5">
             </div>
             
             <div class="control-group">
-                <label for="leg-size">Leg Thickness (cm): <span id="leg-size-value">5</span></label>
+                <label for="leg-size">Legs: <span id="leg-size-value">5cm</span></label>
                 <input type="range" id="leg-size" min="2" max="15" step="0.5" value="5">
             </div>
             
             <div class="control-group">
-                <label for="color">Table Color:</label>
-                <input type="color" id="color" value="#8B4513">
+                <label for="color">Color:</label>
+                <input type="color" id="color" value="#8B4513" style="width: 100%; height: 40px;">
             </div>
             
             <button id="ar-button">View in AR</button>
         </div>
-        
-        <div id="viewer">
-            <div id="ar-container"></div>
-        </div>
     </div>
+    
+    <div id="ar-prompt">Move your phone to detect surfaces, then tap to place the table</div>
+    <button id="exit-ar" style="display: none;">Exit AR</button>
 
     <script>
-        // Main Three.js scene
+        // Check for mobile device
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Initialize Three.js scene
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xf0f0f0);
         
-        const camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 300) / window.innerHeight, 0.1, 1000);
-        camera.position.set(2, 2, 2);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(isMobile ? 3 : 2, isMobile ? 3 : 2, isMobile ? 3 : 2);
         
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth - 300, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.xr.enabled = true;
         document.getElementById('viewer').appendChild(renderer.domElement);
         
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+        // Only enable orbit controls on desktop
+        let controls;
+        if (!isMobile) {
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.25;
+        }
         
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
         
         const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
         directionalLight.position.set(1, 1, 1);
         scene.add(directionalLight);
+        
+        // Add a ground plane for better visualization
+        const groundGeometry = new THREE.PlaneGeometry(10, 10);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xcccccc,
+            roughness: 0.8,
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        scene.add(ground);
         
         // Table parameters
         const tableParams = {
@@ -119,10 +258,9 @@
         let tableGroup = new THREE.Group();
         scene.add(tableGroup);
         
-        // AR scene
-        const arScene = new THREE.Scene();
-        let arTable = null;
-        let arCamera = null;
+        // AR variables
+        let arHitTestSource = null;
+        let arRefSpace = null;
         let arSession = false;
         
         // Create table function
@@ -182,130 +320,194 @@
         createTable();
         
         // Event listeners for controls
+        function updateTable() {
+            createTable();
+        }
+        
         document.getElementById('width').addEventListener('input', function() {
             tableParams.width = parseFloat(this.value);
-            document.getElementById('width-value').textContent = this.value;
-            createTable();
+            document.getElementById('width-value').textContent = this.value + 'm';
+            updateTable();
         });
         
         document.getElementById('depth').addEventListener('input', function() {
             tableParams.depth = parseFloat(this.value);
-            document.getElementById('depth-value').textContent = this.value;
-            createTable();
+            document.getElementById('depth-value').textContent = this.value + 'm';
+            updateTable();
         });
         
         document.getElementById('height').addEventListener('input', function() {
             tableParams.height = parseFloat(this.value);
-            document.getElementById('height-value').textContent = this.value;
-            createTable();
+            document.getElementById('height-value').textContent = this.value + 'm';
+            updateTable();
         });
         
         document.getElementById('thickness').addEventListener('input', function() {
             tableParams.tabletopThickness = parseFloat(this.value)/100;
-            document.getElementById('thickness-value').textContent = this.value;
-            createTable();
+            document.getElementById('thickness-value').textContent = this.value + 'cm';
+            updateTable();
         });
         
         document.getElementById('leg-size').addEventListener('input', function() {
             tableParams.legThickness = parseFloat(this.value)/100;
-            document.getElementById('leg-size-value').textContent = this.value;
-            createTable();
+            document.getElementById('leg-size-value').textContent = this.value + 'cm';
+            updateTable();
         });
         
         document.getElementById('color').addEventListener('input', function() {
             tableParams.color = new THREE.Color(this.value).getHex();
-            createTable();
+            updateTable();
+        });
+        
+        // Toggle controls visibility
+        document.getElementById('toggle-controls').addEventListener('click', function() {
+            const controls = document.getElementById('controls');
+            controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
         });
         
         // AR functionality
-        document.getElementById('ar-button').addEventListener('click', function() {
+        document.getElementById('ar-button').addEventListener('click', async function() {
             if (!navigator.xr) {
-                alert('WebXR not supported in your browser. Try Chrome on Android or AR Quick Look on iOS.');
+                alert('AR not supported in your browser. Try Chrome on Android or Safari on iOS.');
                 return;
             }
             
-            startAR();
+            try {
+                // Check if AR is supported
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    alert('AR not supported on your device');
+                    return;
+                }
+                
+                // Start AR session
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test'],
+                    optionalFeatures: ['dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
+                
+                session.addEventListener('end', onSessionEnd);
+                
+                // Set up Three.js for AR
+                renderer.xr.setReferenceSpaceType('local');
+                renderer.xr.setSession(session);
+                
+                // Show AR UI
+                document.getElementById('ar-prompt').style.display = 'block';
+                document.getElementById('exit-ar').style.display = 'block';
+                document.getElementById('controls').style.display = 'none';
+                document.getElementById('toggle-controls').style.display = 'none';
+                
+                // Create a reticle for placement
+                const reticleGeometry = new THREE.RingGeometry(0.1, 0.11, 32).rotateX(-Math.PI / 2);
+                const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+                reticle.matrixAutoUpdate = false;
+                reticle.visible = false;
+                scene.add(reticle);
+                
+                // Clone table for AR
+                const arTable = tableGroup.clone();
+                arTable.visible = false;
+                scene.add(arTable);
+                
+                let placeTable = false;
+                
+                // Handle controller select (tap) events
+                const controller = renderer.xr.getController(0);
+                controller.addEventListener('select', () => {
+                    if (reticle.visible && !placeTable) {
+                        arTable.position.copy(reticle.position);
+                        arTable.visible = true;
+                        placeTable = true;
+                        document.getElementById('ar-prompt').style.display = 'none';
+                    }
+                });
+                scene.add(controller);
+                
+                // Hit test for surface detection
+                session.addEventListener('select', () => {
+                    if (reticle.visible && !placeTable) {
+                        arTable.position.copy(reticle.position);
+                        arTable.visible = true;
+                        placeTable = true;
+                        document.getElementById('ar-prompt').style.display = 'none';
+                    }
+                });
+                
+                // Animation loop for AR
+                renderer.setAnimationLoop(function(timestamp, frame) {
+                    if (!frame) return;
+                    
+                    // Get hit test results
+                    const referenceSpace = renderer.xr.getReferenceSpace();
+                    const hitTestSource = frame.getHitTestSource('viewer');
+                    
+                    if (hitTestSource && frame) {
+                        const hitTestResults = frame.getHitTestResults(hitTestSource);
+                        
+                        if (hitTestResults.length > 0 && !placeTable) {
+                            const hit = hitTestResults[0];
+                            const pose = hit.getPose(referenceSpace);
+                            
+                            reticle.visible = true;
+                            reticle.matrix.fromArray(pose.transform.matrix);
+                        } else if (!placeTable) {
+                            reticle.visible = false;
+                        }
+                    }
+                    
+                    renderer.render(scene, camera);
+                });
+                
+                arSession = true;
+            } catch (err) {
+                console.error('AR error:', err);
+                alert('Failed to start AR: ' + err.message);
+            }
         });
         
-        function startAR() {
-            // Clone the table for AR
-            arTable = tableGroup.clone();
-            arScene.add(arTable);
-            
-            // Set up AR renderer
-            const arRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            arRenderer.setSize(window.innerWidth, window.innerHeight);
-            arRenderer.xr.enabled = true;
-            
-            document.getElementById('ar-container').innerHTML = '';
-            document.getElementById('ar-container').appendChild(arRenderer.domElement);
-            document.getElementById('ar-container').style.display = 'block';
-            
-            // Add exit button
-            const exitButton = document.createElement('button');
-            exitButton.id = 'exit-ar';
-            exitButton.textContent = 'Exit AR';
-            exitButton.addEventListener('click', exitAR);
-            document.getElementById('ar-container').appendChild(exitButton);
-            
-            // Set up AR session
-            navigator.xr.requestSession('immersive-ar', {
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
-            }).then(session => {
-                arSession = true;
-                
-                session.addEventListener('end', exitAR);
-                
-                arRenderer.xr.setSession(session);
-                
-                // Create AR camera
-                arCamera = new THREE.PerspectiveCamera();
-                arCamera.matrixAutoUpdate = true;
-                
-                // Animation loop
-                arRenderer.setAnimationLoop(function() {
-                    if (arTable) {
-                        // Make table face the camera
-                        arTable.lookAt(arCamera.position);
-                        arTable.rotation.x = 0;
-                        arTable.rotation.z = 0;
-                    }
-                    arRenderer.render(arScene, arCamera);
-                });
-            }).catch(err => {
-                console.error('AR session failed:', err);
-                alert('Failed to start AR session: ' + err.message);
-            });
+        function onSessionEnd() {
+            renderer.setAnimationLoop(null);
+            document.getElementById('ar-prompt').style.display = 'none';
+            document.getElementById('exit-ar').style.display = 'none';
+            document.getElementById('controls').style.display = 'block';
+            document.getElementById('toggle-controls').style.display = 'block';
+            arSession = false;
         }
         
-        function exitAR() {
-            if (arSession) {
-                arSession.end().then(() => {
-                    arSession = false;
-                    document.getElementById('ar-container').style.display = 'none';
-                });
-            } else {
-                document.getElementById('ar-container').style.display = 'none';
-            }
-        }
+        document.getElementById('exit-ar').addEventListener('click', onSessionEnd);
         
         // Handle window resize
         window.addEventListener('resize', function() {
-            camera.aspect = (window.innerWidth - 300) / window.innerHeight;
+            camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth - 300, window.innerHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
         
         // Animation loop
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
+            
+            if (controls && !arSession) {
+                controls.update();
+            }
+            
             renderer.render(scene, camera);
         }
         
         animate();
+        
+        // Mobile-specific optimizations
+        if (isMobile) {
+            // Make controls more compact
+            document.getElementById('controls').style.maxHeight = '50vh';
+            
+            // Hide controls by default on mobile to maximize viewing area
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('toggle-controls').textContent = '✏️';
+        }
     </script>
 </body>
 </html>
